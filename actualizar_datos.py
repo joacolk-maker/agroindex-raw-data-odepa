@@ -136,6 +136,10 @@ def main():
 
     print(f"Listo. Total de filas nuevas agregadas hoy: {total_nuevas}")
 
+    if total_nuevas == 0:
+        print("Sin nuevos datos. No es necesario refrescar la vista precios_web.")
+        return
+
     print("Refrescando la vista precios_web...")
     refrescar_vista()
     print("Vista precios_web actualizada.")
