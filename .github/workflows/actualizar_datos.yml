@@ -2,29 +2,56 @@ name: Actualizar datos ODEPA
 
 on:
   schedule:
-    # Corre todos los dias a las 13:00 UTC (aprox. 10:00 hora Chile continental,
-    # puede variar 1 hora segun horario de verano/invierno)
-    - cron: "0 13 * * *"
-  # Permite tambien correrlo manualmente desde la pestana "Actions" de GitHub,
-  # util para probar que todo funciona sin esperar al horario programado
+    # Chile usa UTC-3 en verano y UTC-4 en invierno.
+    # Se programan ambas horas y el primer paso elige la correcta.
+    - cron: "0 21 * * *"
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 jobs:
   actualizar:
     runs-on: ubuntu-latest
     steps:
+      - name: Validar horario de Chile
+        id: horario
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" != "schedule" ]]; then
+            echo "ejecutar=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          offset="$(TZ=America/Santiago date +%z)"
+          if [[ "$offset" == "-0300" ]]; then
+            expresion_correcta="0 21 * * *"
+          else
+            expresion_correcta="0 22 * * *"
+          fi
+
+          if [[ "${{ github.event.schedule }}" == "$expresion_correcta" ]]; then
+            echo "ejecutar=true" >> "$GITHUB_OUTPUT"
+            echo "Ejecucion valida para las 18:00 de Chile."
+          else
+            echo "ejecutar=false" >> "$GITHUB_OUTPUT"
+            echo "Ejecucion omitida: corresponde al segundo horario de respaldo."
+          fi
+
       - name: Clonar repositorio
+        if: steps.horario.outputs.ejecutar == 'true'
         uses: actions/checkout@v4
 
       - name: Configurar Python
+        if: steps.horario.outputs.ejecutar == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Instalar dependencias
+        if: steps.horario.outputs.ejecutar == 'true'
         run: pip install -r requirements.txt
 
       - name: Ejecutar script de actualizacion
+        if: steps.horario.outputs.ejecutar == 'true'
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
